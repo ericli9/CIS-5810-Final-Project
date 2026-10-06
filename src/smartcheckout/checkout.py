@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .catalog import Catalog
+from .events import LogEntry
 from .zonestate import ZoneEvent
 
 
@@ -43,7 +44,7 @@ class CartGroup:
 class Cart:
     catalog: Catalog
     lines: dict[tuple[str, int], CartLine] = field(default_factory=dict)
-    log: list[str] = field(default_factory=list)
+    log: list[LogEntry] = field(default_factory=list)
     added: int = 0
     removed: int = 0
 
@@ -87,8 +88,14 @@ class Cart:
         self.lines[key] = line
         self.added += 1
         self.log.append(
-            f"[f{event.frame_idx:05d}] + {line.display} {self.catalog.money(line.price)}"
-            f" (track {key[1]} in {event.zone.name})"
+            LogEntry(
+                frame=event.frame_idx,
+                kind="add",
+                camera=event.camera,
+                display=line.display,
+                text=f"+ {line.display} {self.catalog.money(line.price)}"
+                f" (track {key[1]} in {event.zone.name})",
+            )
         )
 
     def _remove(self, key: tuple[str, int], event: ZoneEvent) -> None:
@@ -97,8 +104,14 @@ class Cart:
             return
         self.removed += 1
         self.log.append(
-            f"[f{event.frame_idx:05d}] - {line.display} {self.catalog.money(line.price)}"
-            f" (track {key[1]} left {event.zone.name})"
+            LogEntry(
+                frame=event.frame_idx,
+                kind="remove",
+                camera=event.camera,
+                display=line.display,
+                text=f"- {line.display} {self.catalog.money(line.price)}"
+                f" (track {key[1]} left {event.zone.name})",
+            )
         )
 
     @property

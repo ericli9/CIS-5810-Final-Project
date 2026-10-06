@@ -24,6 +24,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from .catalog import Catalog
+from .events import LogEntry
 from .zonestate import ZoneEvent
 
 #: Roles that make an item "accounted for" and mint a credit in the ledger.
@@ -66,7 +67,7 @@ class ScanGate:
     cleared: list[dict] = field(default_factory=list)
     alerts: list[Alert] = field(default_factory=list)
     flagged_tracks: set[tuple[str, int]] = field(default_factory=set)
-    log: list[str] = field(default_factory=list)
+    log: list[LogEntry] = field(default_factory=list)
 
     def handle(self, event: ZoneEvent) -> Alert | None:
         if event.kind == "exit":
@@ -93,8 +94,14 @@ class ScanGate:
         self.accounted_tracks.add(key)
         self.credits[cls_name] += 1
         self.log.append(
-            f"[f{event.frame_idx:05d}] scanned {self._display(cls_name)}"
-            f" ({event.zone.name} on {event.camera})"
+            LogEntry(
+                frame=event.frame_idx,
+                kind="account",
+                camera=event.camera,
+                display=self._display(cls_name),
+                text=f"accounted for {self._display(cls_name)}"
+                f" ({event.zone.name} on {event.camera})",
+            )
         )
 
     def _revoke(self, event: ZoneEvent) -> None:
@@ -105,8 +112,14 @@ class ScanGate:
         self.accounted_tracks.discard(key)
         self.credits[cls_name] = max(0, self.credits[cls_name] - 1)
         self.log.append(
-            f"[f{event.frame_idx:05d}] credit revoked for {self._display(cls_name)}"
-            f" (left {event.zone.name} on {event.camera})"
+            LogEntry(
+                frame=event.frame_idx,
+                kind="revoke",
+                camera=event.camera,
+                display=self._display(cls_name),
+                text=f"credit revoked for {self._display(cls_name)}"
+                f" (left {event.zone.name} on {event.camera})",
+            )
         )
 
     def _gate(self, event: ZoneEvent) -> Alert | None:
@@ -137,8 +150,13 @@ class ScanGate:
         self.flagged_tracks.add(key)
         self.alerts.append(alert)
         self.log.append(
-            f"[f{event.frame_idx:05d}] ALERT unscanned {alert.display}"
-            f" in {event.zone.name} on {event.camera}"
+            LogEntry(
+                frame=event.frame_idx,
+                kind="alert",
+                camera=event.camera,
+                display=alert.display,
+                text=f"unscanned {alert.display} in {event.zone.name} on {event.camera}",
+            )
         )
         return alert
 
@@ -154,8 +172,13 @@ class ScanGate:
             }
         )
         self.log.append(
-            f"[f{event.frame_idx:05d}] ok {self._display(event.track.cls_name)}"
-            f" bagged ({why})"
+            LogEntry(
+                frame=event.frame_idx,
+                kind="clear",
+                camera=event.camera,
+                display=self._display(event.track.cls_name),
+                text=f"{self._display(event.track.cls_name)} bagged ({why})",
+            )
         )
 
     def _display(self, cls_name: str) -> str:

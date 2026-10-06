@@ -15,7 +15,7 @@
   "cameras": [
     {
       "id": "lane",
-      "label": "WEBCAM  basket -> scan -> bag",
+      "label": "Basket, scanner, bag",
       "source": "0",
       "zones": [
         {

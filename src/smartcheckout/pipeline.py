@@ -13,6 +13,7 @@ from .catalog import Catalog
 from .checkout import Cart
 from .config import AppConfig, CameraConfig
 from .detect import Detection, ScriptedDetector, YoloDetector
+from .events import LogEntry
 from .lossprev import Alert, ScanGate
 from .viz import draw_alert_banner, draw_camera_header, draw_detections, draw_zones
 from .zonestate import ZoneEvent, ZoneOccupancy
@@ -163,6 +164,9 @@ class Pipeline:
         self._tick = time.perf_counter()
         self._measured_fps = 0.0
         self._banners: dict[str, tuple[str, int]] = {}  # camera id -> (text, last frame)
+        #: The web console puts the camera name and status in HTML around the
+        #: video, so it turns this off to keep the picture clean.
+        self.draw_header = True
 
     @staticmethod
     def _backend_for(cam: CameraConfig, backend: str) -> str:
@@ -253,10 +257,11 @@ class Pipeline:
     ) -> np.ndarray:
         canvas = draw_zones(frame.copy(), cam.cfg.zones)
         draw_detections(canvas, self._rows(cam, dets))
-        title = cam.cfg.label or cam.cfg.id
-        roles = ",".join(sorted({z.role for z in cam.cfg.zones}))
-        subtitle = f"{cam.backend}  |  {roles}" + ("  |  ended" if ended else "")
-        draw_camera_header(canvas, title, subtitle)
+        if self.draw_header:
+            title = cam.cfg.label or cam.cfg.id
+            roles = ",".join(sorted({z.role for z in cam.cfg.zones}))
+            subtitle = f"{cam.backend}  |  {roles}" + ("  |  ended" if ended else "")
+            draw_camera_header(canvas, title, subtitle)
         banner = self._banners.get(cam.cfg.id)
         if banner is not None and self.frame_idx <= banner[1]:
             draw_alert_banner(canvas, banner[0])
@@ -320,6 +325,10 @@ class Pipeline:
         self.frame_idx = 0
         self._banners.clear()
 
+    def timeline(self) -> list[LogEntry]:
+        """Every decision from both features, oldest first."""
+        return sorted(self.cart.log + self.gate.log, key=lambda e: e.frame)
+
     def report(self) -> dict:
         return {
             "config": str(self.cfg.path),
@@ -332,8 +341,9 @@ class Pipeline:
             ],
             "receipt": self.cart.receipt(),
             "loss_prevention": self.gate.summary(),
-            "cart_log": self.cart.log,
-            "gate_log": self.gate.log,
+            "timeline": [e.to_dict(self.fps_nominal) for e in self.timeline()],
+            "cart_log": [e.text for e in self.cart.log],
+            "gate_log": [e.text for e in self.gate.log],
         }
 
     def close(self) -> None:

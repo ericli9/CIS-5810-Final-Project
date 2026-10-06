@@ -187,6 +187,49 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_serve(args: argparse.Namespace) -> int:
+    import webbrowser
+
+    from .server import serve
+
+    cfg = _load(args)
+    pipeline = Pipeline(
+        cfg,
+        backend=args.backend,
+        loop=args.loop,
+        alert_dir=Path(args.alerts_dir) if args.alerts_dir else None,
+    )
+    httpd, worker = serve(pipeline, host=args.host, port=args.port, speed=args.speed)
+    url = f"http://{'localhost' if args.host in ('0.0.0.0', '127.0.0.1') else args.host}:{args.port}/"
+
+    print(f"config   : {cfg.path}")
+    for cam in pipeline.cameras:
+        roles = ", ".join(sorted({z.role for z in cam.cfg.zones})) or "no zones"
+        print(f"camera   : {cam.cfg.id:<8} {cam.backend:<9} {cam.size[0]}x{cam.size[1]}  [{roles}]")
+    print(f"\nconsole  : {url}")
+    print("           ctrl-c to stop\n")
+    if not args.no_browser:
+        webbrowser.open(url)
+
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("stopping")
+    finally:
+        worker.shutdown()
+        httpd.shutdown()
+        httpd.server_close()
+        pipeline.close()
+
+    _print_summary(pipeline)
+    if args.report:
+        out = Path(args.report)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(pipeline.report(), indent=2) + "\n", encoding="utf-8")
+        print(f"report   : {out}")
+    return 0
+
+
 def cmd_zones(args: argparse.Namespace) -> int:
     from .zone_editor import edit_zones
 
@@ -269,6 +312,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="playback speed multiplier; 0 runs as fast as possible",
     )
     p_run.set_defaults(func=cmd_run, display=True)
+
+    p_serve = sub.add_parser("serve", help="run the pipeline behind the web console")
+    p_serve.add_argument("--config", default=str(DEFAULT_CONFIG))
+    p_serve.add_argument("--backend", choices=("auto", "yolo", "scripted"), default="auto")
+    p_serve.add_argument("--source", default=None, help="override a camera source")
+    p_serve.add_argument("--camera", default=None, help="which camera id --source applies to")
+    p_serve.add_argument("--model", default=None)
+    p_serve.add_argument("--conf", type=float, default=None)
+    p_serve.add_argument("--device", default=None)
+    p_serve.add_argument("--host", default="127.0.0.1")
+    p_serve.add_argument("--port", type=int, default=8000)
+    p_serve.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
+    p_serve.add_argument("--loop", action="store_true", help="restart the session when sources end")
+    p_serve.add_argument("--alerts-dir", default=str(REPO_ROOT / "out" / "alerts"))
+    p_serve.add_argument("--report", default=None, help="write a JSON session report on exit")
+    p_serve.add_argument("--speed", type=float, default=1.0)
+    p_serve.set_defaults(func=cmd_serve)
 
     p_zones = sub.add_parser("zones", help="draw zone polygons on a camera frame")
     p_zones.add_argument("--config", default=str(DEFAULT_CONFIG))

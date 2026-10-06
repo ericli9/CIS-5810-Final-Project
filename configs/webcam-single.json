@@ -15,7 +15,7 @@
   "cameras": [
     {
       "id": "lane",
-      "label": "WEBCAM  bin (left) -> bag (right)",
+      "label": "Bin (left) and bag (right)",
       "source": "0",
       "zones": [
         {

@@ -7,9 +7,9 @@ This project uses computer vision to improve two important grocery store checkou
 ## MVP
 
 A runnable version of both features. One pipeline, any number of cameras, a live
-cart and a live alert feed.
+cart and a live alert feed, in a browser or an OpenCV window.
 
-![demo](docs/screenshot.png)
+![the web console](docs/console.png)
 
 **Auto-checkout** — items that settle inside a `bin` zone are recognized, priced
 from a catalog and added to the cart. Take one back out and its line comes off.
@@ -32,17 +32,28 @@ pip install -r requirements.txt
 
 ## Run it
 
-### 1. The offline demo — no camera, no weights, no network
+### 1. The web console — no camera, no weights, no network
+
+```bash
+python run.py demo      # synthesize two camera feeds and their ground-truth tracks
+python run.py serve     # start the console and open a browser at localhost:8000
+```
+
+The console streams each camera, prints the cart onto a receipt as items are
+recognized, and lands every decision in a timecoded log. The lane pole light in
+the header is the status at a glance: green clear, amber attendant needed, red
+unscanned item. <kbd>Space</kbd> pauses, <kbd>R</kbd> restarts the session.
+
+The demo scenario: a banana, a bottle and an orange go into the bin and get
+priced; a cup goes in and is lifted back out, so its line comes off the receipt
+*and* its scan credit is revoked; over on the bagging camera the banana and
+bottle clear, and an apple that the bin camera never saw trips the alert.
+
+### 2. The same thing in an OpenCV window
 
 ```bash
 python run.py demo --run
 ```
-
-This synthesizes two camera feeds plus their ground-truth tracks, then plays the
-whole pipeline over them. A banana, a bottle and an orange go into the bin and
-get priced; a cup goes in and is lifted back out, so its line is removed *and*
-its scan credit is revoked; over on the bagging camera the banana and bottle
-clear, and an apple that the bin camera never saw trips the alert.
 
 ```
 --- receipt --------------------------------------------
@@ -61,10 +72,13 @@ Headless, for a graded artifact rather than a window:
 python run.py demo --run --no-display --save out/demo.mp4 --report out/report.json
 ```
 
-### 2. Your webcam
+![the OpenCV window](docs/screenshot.png)
+
+### 3. Your webcam
 
 ```bash
-python run.py run --config configs/webcam-single.json
+python run.py serve --config configs/webcam-single.json   # browser
+python run.py run   --config configs/webcam-single.json   # window
 ```
 
 The left half of the frame is the checkout bin, the right half is the shopping
@@ -92,12 +106,13 @@ then <kbd>s</kbd> to save back into the config.
 python run.py run --config configs/webcam-single.json --source path/to/clip.mp4
 ```
 
-Keys while running: <kbd>q</kbd> quit, <kbd>space</kbd> pause, <kbd>r</kbd> reset
-the session, <kbd>p</kbd> save a snapshot.
+Keys in the OpenCV window: <kbd>q</kbd> quit, <kbd>space</kbd> pause,
+<kbd>r</kbd> reset the session, <kbd>p</kbd> save a snapshot.
 
 Useful flags: `--backend yolo|scripted`, `--model yolo11s.pt`, `--conf 0.5`,
 `--device cpu|0|mps`, `--speed 0` (as fast as possible), `--loop`,
 `--max-frames N`, `--no-display`, `--save out.mp4`, `--report out.json`.
+`serve` also takes `--port`, `--host` and `--no-browser`.
 
 `python run.py check --config <cfg>` validates a config and prints what it
 declares, which is the fastest way to find a bad path or a missing zone.
@@ -117,6 +132,17 @@ frame ─► detector ─► tracker ─► zone coverage ─► debounce ─►
 | Cart | `src/smartcheckout/checkout.py` | Bin entries add priced lines, bin exits remove them. Unrecognized classes are added as flagged lines rather than silently dropped. |
 | Scan gate | `src/smartcheckout/lossprev.py` | Clears a bagged item by track identity first, then by a shared per-class credit ledger. |
 | Rendering | `src/smartcheckout/viz.py` | Zone overlay, box states, cart panel, alert banner. OpenCV only. |
+| Web console | `src/smartcheckout/server.py`, `web/console.html` | One worker thread owns the pipeline and publishes JPEG frames plus a JSON snapshot; request threads only read it. Standard library only — no web framework, and the page is one self-contained file with no CDN. |
+
+### The console's HTTP surface
+
+| Route | Returns |
+| --- | --- |
+| `GET /` | the console page |
+| `GET /api/state` | JSON: status, telemetry, cameras, receipt, gate counters, decision log |
+| `GET /api/stream/<camera>` | MJPEG (`multipart/x-mixed-replace`) |
+| `GET /api/frame/<camera>.jpg` | the latest single frame |
+| `POST /api/control` | `{"action": "pause" \| "resume" \| "restart"}` |
 
 ### Why two clearance checks
 
@@ -170,10 +196,11 @@ file; nothing downstream changes.
 pytest
 ```
 
-27 tests: zone coverage geometry (including concave zones), debounce hysteresis,
-track loss, cart add/remove/grouping, every branch of the scan gate, and an
+34 tests: zone coverage geometry (including concave zones), debounce hysteresis,
+track loss, cart add/remove/grouping, every branch of the scan gate, an
 end-to-end run of the generated demo that asserts the $4.77 receipt and exactly
-one alert on the apple.
+one alert on the apple, and the console's HTTP surface driven against a live
+pipeline.
 
 ## What this MVP does not do yet
 
@@ -188,3 +215,5 @@ one alert on the apple.
   needs its zones redrawn.
 - **Occlusion by hands** is handled only by debouncing, not modeled.
 - **Counting is per-item.** Weighed goods and multipacks are out of scope.
+- **The console has no authentication.** It binds to `127.0.0.1` on purpose;
+  passing `--host 0.0.0.0` puts the camera feeds on your network in the clear.

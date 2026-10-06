@@ -220,14 +220,14 @@ def build_demo(data_dir: Path, config_path: Path, catalog_rel: str = "catalog.js
         "cameras": [
             {
                 "id": "bin",
-                "label": "CAM 1  checkout bin",
+                "label": "Checkout bin",
                 "source": rel(bin_video),
                 "detections": rel(bin_dets),
                 "zones": BIN_ZONES,
             },
             {
                 "id": "bag",
-                "label": "CAM 2  basket -> shopping bag",
+                "label": "Basket to shopping bag",
                 "source": rel(bag_video),
                 "detections": rel(bag_dets),
                 "zones": BAG_ZONES,

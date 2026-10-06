@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="en" data-status="starting">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lane console &middot; Smart Checkout</title>
+<style>
+:root {
+  --slate:        #15171a;
+  --slate-raised: #1d2025;
+  --rule:         #2c3037;
+  --paper:        #f2ede3;
+  --ink:          #1a1714;
+  --ink-soft:     #6b6358;
+  --amber:        #e8a33d;
+  --go:           #4fb477;
+  --stop:         #e0523f;
+  --text:         #e4e7ea;
+  --muted:        #8c939e;
+
+  --font-ui: "Bahnschrift", "DIN Alternate", "Roboto Condensed", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", "Consolas", ui-monospace, SFMono-Regular, monospace;
+
+  --gap: 18px;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--slate);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2 { margin: 0; font-weight: 600; font-stretch: 87.5%; letter-spacing: .01em; }
+
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* ---------- top rail ---------- */
+
+.rail {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 14px var(--gap);
+  border-bottom: 1px solid var(--rule);
+  background: var(--slate-raised);
+  flex-wrap: wrap;
+}
+
+.rail__ident h1 { font-size: 21px; line-height: 1.1; }
+
+/* the lane pole light, the same three lamps that sit above a real lane */
+.pole {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 14px 7px 9px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: #0f1113;
+}
+
+.pole__lamp {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #24282e;
+  box-shadow: inset 0 0 0 1px #000, inset 0 1px 1px rgba(255,255,255,.07);
+}
+
+.pole__lamp[data-lit] { box-shadow: inset 0 0 0 1px rgba(0,0,0,.5), 0 0 11px 1px currentColor; }
+.pole__lamp[data-lamp="stop"][data-lit] { background: var(--stop); color: var(--stop); }
+.pole__lamp[data-lamp="warn"][data-lit] { background: var(--amber); color: var(--amber); }
+.pole__lamp[data-lamp="go"][data-lit]   { background: var(--go);   color: var(--go); }
+
+.pole__label {
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-left: 4px;
+  min-width: 11ch;
+}
+
+html[data-alerting="true"] .pole__lamp[data-lit] { animation: throb 1s ease-in-out infinite; }
+html[data-alerting="true"] .pole__label { color: var(--stop); }
+
+@keyframes throb { 50% { opacity: .35; } }
+
+.telemetry { display: flex; gap: 22px; margin: 0 0 0 auto; }
+.telemetry div { display: flex; flex-direction: column; gap: 1px; }
+.telemetry dt {
+  font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+}
+.telemetry dd {
+  margin: 0; font-family: var(--font-mono); font-size: 14px; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.controls { display: flex; gap: 8px; }
+
+button {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  letter-spacing: .04em;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 8px 15px;
+  cursor: pointer;
+  transition: border-color .12s, color .12s, background .12s;
+}
+button:hover { border-color: var(--amber); color: var(--amber); }
+button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+button[data-active] { border-color: var(--amber); color: var(--slate); background: var(--amber); }
+
+/* ---------- layout ---------- */
+
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 392px;
+  grid-template-areas: "views receipt" "ledger receipt";
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--gap);
+  padding: var(--gap);
+  align-items: start;
+  min-height: calc(100vh - 74px);
+}
+
+/* ---------- camera tiles ---------- */
+
+.views {
+  grid-area: views;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--gap);
+  margin: 0;
+  min-width: 0;
+}
+
+.view {
+  margin: 0;
+  min-width: 0;  /* grid items default to min-content, which would overflow narrow screens */
+  border: 1px solid var(--rule);
+  background: #0f1113;
+  transition: border-color .15s;
+}
+
+.view[data-alerting="true"] { border-color: var(--stop); }
+
+.view figcaption {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.view__index {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .1em;
+  color: var(--amber);
+  border: 1px solid #4a3c22;
+  padding: 1px 6px;
+}
+
+.view__name {
+  font-size: 13px;
+  letter-spacing: .03em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.view__roles {
+  margin-left: auto;
+  display: flex;
+  gap: 5px;
+}
+
+.role {
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border: 1px solid var(--rule);
+  color: var(--muted);
+}
+.role[data-role="bin"]  { color: var(--amber); border-color: #4a3c22; }
+.role[data-role="bag"]  { color: #6fc3f0;      border-color: #23414f; }
+.role[data-role="scan"] { color: var(--go);    border-color: #234634; }
+
+.view__frame { position: relative; aspect-ratio: 16 / 9; background: #0b0c0e; }
+.view__frame img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+.view__lost {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  padding: 0 24px;
+}
+.view[data-feed="lost"] .view__lost { display: flex; }
+.view[data-feed="lost"] img { opacity: .12; }
+
+/* ---------- decision log ---------- */
+
+.ledger {
+  grid-area: ledger;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ledger__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.ledger__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+
+.ledger__empty { padding: 16px 2px; color: var(--muted); font-size: 13px; }
+
+.event {
+  display: grid;
+  grid-template-columns: 74px 92px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 2px;
+  border-bottom: 1px solid #1f2227;
+}
+
+.event time {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.event__kind {
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-left: 2px solid var(--rule);
+  padding-left: 8px;
+}
+.event[data-kind="alert"]  .event__kind { color: var(--stop);  border-color: var(--stop); }
+.event[data-kind="clear"]  .event__kind { color: var(--go);    border-color: var(--go); }
+.event[data-kind="account"] .event__kind { color: var(--go);   border-color: #234634; }
+.event[data-kind="add"]    .event__kind { color: var(--amber); border-color: #4a3c22; }
+.event[data-kind="revoke"] .event__kind { color: var(--amber); border-color: #4a3c22; }
+
+.event__text { margin: 0; font-size: 13px; color: var(--text); }
+.event[data-kind="alert"] .event__text { color: var(--stop); }
+.event[data-kind="remove"] .event__text { color: var(--muted); }
+
+.event[data-fresh] { animation: land .18s ease-out; }
+@keyframes land { from { opacity: 0; transform: translateY(-5px); } }
+
+/* ---------- the receipt ---------- */
+
+.receipt-wrap { grid-area: receipt; position: sticky; top: var(--gap); }
+
+.receipt {
+  position: relative;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 26px 24px 20px;
+  box-shadow: 0 14px 34px rgba(0,0,0,.45);
+}
+
+/* width must be explicit: the SVG's 10:1 intrinsic ratio otherwise wins over left/right */
+.receipt__tear { position: absolute; left: 0; top: 100%; width: 100%; height: 11px; display: block; }
+
+.receipt__head { text-align: center; }
+.receipt__store { font-weight: 700; letter-spacing: .22em; }
+.receipt__meta { color: var(--ink-soft); font-size: 11.5px; letter-spacing: .04em; }
+
+.receipt hr { border: 0; border-top: 1px dashed #c6bdae; margin: 13px 0; }
+
+.receipt__lines { list-style: none; margin: 0; padding: 0; }
+
+.line { display: flex; align-items: baseline; gap: 7px; padding: 2px 0; }
+.line__qty { width: 2.5ch; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.line__name { text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.line__dots { flex: 1 1 auto; border-bottom: 1px dotted #b6ab99; transform: translateY(-4px); min-width: 12px; }
+.line__amt { font-variant-numeric: tabular-nums; }
+
+.line[data-unknown] .line__name { color: var(--stop); }
+.line[data-fresh] { animation: print .9s ease-out; }
+@keyframes print { from { background: rgba(232,163,61,.42); } }
+
+.receipt__empty { text-align: center; color: var(--ink-soft); padding: 18px 0; font-size: 12px; letter-spacing: .06em; }
+
+.total { display: flex; align-items: baseline; justify-content: space-between; font-size: 21px; font-weight: 700; letter-spacing: .04em; }
+.total span { letter-spacing: .22em; }
+.total b { font-variant-numeric: tabular-nums; }
+
+.tally { display: flex; justify-content: space-between; color: var(--ink-soft); font-size: 11.5px; letter-spacing: .06em; }
+
+.stamp {
+  margin-top: 12px;
+  border: 2px solid var(--stop);
+  color: var(--stop);
+  text-align: center;
+  padding: 5px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  font-size: 11.5px;
+  transform: rotate(-1.2deg);
+  display: none;
+}
+.receipt[data-attention="true"] .stamp { display: block; }
+
+.barcode { margin-top: 16px; height: 34px; }
+.barcode__id { text-align: center; color: var(--ink-soft); font-size: 10.5px; letter-spacing: .3em; margin-top: 5px; }
+
+/* ---------- gate panel (the store's side, off the paper) ---------- */
+
+.gate { margin-top: 34px; border: 1px solid var(--rule); }
+.gate__head { padding: 10px 14px; border-bottom: 1px solid var(--rule); }
+.gate__grid { display: grid; grid-template-columns: repeat(2, 1fr); }
+
+.stat { padding: 13px 14px; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.stat:nth-child(2n) { border-right: 0; }
+.stat:nth-last-child(-n+2) { border-bottom: 0; }
+.stat dt { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.stat dd { margin: 2px 0 0; font-family: var(--font-mono); font-size: 20px; font-variant-numeric: tabular-nums; }
+.stat[data-tone="alert"] dd { color: var(--stop); }
+.stat[data-tone="go"] dd { color: var(--go); }
+
+/* ---------- connection notice ---------- */
+
+.notice {
+  display: none;
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px 13px;
+  border: 1px solid var(--stop);
+  color: var(--stop);
+  font-size: 13px;
+}
+html[data-status="offline"] .notice { display: block; }
+html[data-status="offline"] .pole__lamp { background: #24282e; box-shadow: none; animation: none; }
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 1180px) {
+  main { grid-template-columns: minmax(0, 1fr); grid-template-areas: "views" "receipt" "ledger"; }
+  .receipt-wrap { position: static; max-width: min(430px, 100%); }
+  .ledger__list { max-height: none; }
+}
+
+@media (max-width: 760px) {
+  .rail { gap: 16px; }
+  .telemetry { margin-left: 0; width: 100%; gap: 18px; }
+  .views { grid-template-columns: minmax(0, 1fr); }
+  .event { grid-template-columns: 62px 1fr; row-gap: 2px; }
+  .event__text { grid-column: 1 / -1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<header class="rail">
+  <div class="rail__ident">
+    <div class="eyebrow">Market 5810 &middot; self-checkout</div>
+    <h1>Lane console</h1>
+  </div>
+
+  <div class="pole" role="status" aria-live="polite">
+    <span class="pole__lamp" data-lamp="stop"></span>
+    <span class="pole__lamp" data-lamp="warn"></span>
+    <span class="pole__lamp" data-lamp="go"></span>
+    <span class="pole__label" id="poleLabel">Starting</span>
+  </div>
+
+  <dl class="telemetry">
+    <div><dt>Elapsed</dt><dd id="telTime">0.0s</dd></div>
+    <div><dt>Frame</dt><dd id="telFrame">0</dd></div>
+    <div><dt>Rate</dt><dd id="telFps">0.0</dd></div>
+    <div><dt>Detector</dt><dd id="telBackend">&mdash;</dd></div>
+  </dl>
+
+  <div class="controls">
+    <button id="btnPause" type="button">Pause</button>
+    <button id="btnRestart" type="button">Restart session</button>
+  </div>
+
+  <p class="notice" id="notice">Lost the console feed. Check that the server is still running, then reload.</p>
+</header>
+
+<main>
+  <section class="views" id="views" aria-label="Camera feeds"></section>
+
+  <section class="ledger">
+    <div class="ledger__head">
+      <h2 class="eyebrow">Decision log</h2>
+      <span class="eyebrow" id="ledgerCount" style="margin-left:auto"></span>
+    </div>
+    <ol class="ledger__list" id="ledger"></ol>
+    <p class="ledger__empty" id="ledgerEmpty">Nothing yet. Place an item in the bin to start the session.</p>
+  </section>
+
+  <aside class="receipt-wrap">
+    <div class="receipt" id="receipt">
+      <div class="receipt__head">
+        <div class="receipt__store">MARKET 5810</div>
+        <div class="receipt__meta" id="receiptMeta">SELF-CHECKOUT</div>
+      </div>
+      <hr>
+      <ul class="receipt__lines" id="lines"></ul>
+      <p class="receipt__empty" id="linesEmpty">BIN IS EMPTY</p>
+      <hr>
+      <div class="total"><span>TOTAL</span><b id="total">0.00</b></div>
+      <div class="tally">
+        <span id="tallyItems">0 ITEMS</span>
+        <span id="tallyRemoved"></span>
+      </div>
+      <div class="stamp">ATTENDANT REQUIRED</div>
+      <div class="barcode" id="barcode" aria-hidden="true"></div>
+      <div class="barcode__id" id="barcodeId"></div>
+      <svg class="receipt__tear" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">
+        <path id="tearPath" fill="var(--paper)"></path>
+      </svg>
+    </div>
+
+    <section class="gate">
+      <div class="gate__head"><h2 class="eyebrow">Scan gate</h2></div>
+      <dl class="gate__grid">
+        <div class="stat" data-tone="alert"><dt>Alerts</dt><dd id="gateAlerts">0</dd></div>
+        <div class="stat" data-tone="go"><dt>Bagged &amp; cleared</dt><dd id="gateCleared">0</dd></div>
+        <div class="stat"><dt>Accounted for</dt><dd id="gateAccounted">0</dd></div>
+        <div class="stat"><dt>Unused credits</dt><dd id="gateCredits">0</dd></div>
+      </dl>
+    </section>
+  </aside>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const root = document.documentElement;
+
+  const KIND_LABEL = {
+    add: "Priced", remove: "Removed", account: "Accounted",
+    revoke: "Revoked", clear: "Bagged", alert: "Alert",
+  };
+
+  let currency = "$";
+  let builtCameras = "";
+  let seenEvents = new Set();
+  let paused = false;
+  let firstPaint = true;
+
+  // -- receipt furniture, drawn once -----------------------------------------
+
+  const teeth = 34;
+  let d = "M0 0";
+  for (let i = 0; i < teeth; i++) {
+    d += ` L${((i + 0.5) * 100 / teeth).toFixed(3)} 10 L${((i + 1) * 100 / teeth).toFixed(3)} 0`;
+  }
+  $("tearPath").setAttribute("d", d + " Z");
+
+  // Hard stops (two positions per colour), or the gradient interpolates into a grey smear.
+  const bars = [];
+  let x = 0;
+  for (let i = 0; i < 64; i++) {
+    const w = 1 + Math.floor(Math.random() * 3);
+    bars.push(`${i % 2 ? "transparent" : "var(--ink)"} ${x}px ${x + w}px`);
+    x += w;
+  }
+  let barcodeId = "";
+  for (let i = 0; i < 12; i++) barcodeId += "0123456789"[Math.floor(Math.random() * 10)];
+  const barcode = $("barcode");
+  barcode.style.backgroundImage = `linear-gradient(90deg, ${bars.join(", ")})`;
+  barcode.style.backgroundSize = `${x}px 100%`;
+  barcode.style.backgroundRepeat = "repeat-x";
+  $("barcodeId").textContent = barcodeId;
+
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  $("receiptMeta").textContent =
+    `LANE 04   ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}   ` +
+    `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  const money = (v) => `${currency}${Number(v).toFixed(2)}`;
+  const timecode = (s) => `${pad(Math.floor(s / 60))}:${(s % 60).toFixed(1).padStart(4, "0")}`;
+
+  // -- rendering -------------------------------------------------------------
+
+  function buildCameras(cameras) {
+    const signature = cameras.map((c) => c.id).join("|");
+    if (signature === builtCameras) return;
+    builtCameras = signature;
+    $("views").innerHTML = "";
+    cameras.forEach((cam, i) => {
+      const fig = document.createElement("figure");
+      fig.className = "view";
+      fig.dataset.camera = cam.id;
+      fig.innerHTML = `
+        <figcaption>
+          <span class="view__index">CAM ${i + 1}</span>
+          <span class="view__name">${cam.label}</span>
+          <span class="view__roles">${cam.roles.map((r) =>
+            `<span class="role" data-role="${r}">${r}</span>`).join("")}</span>
+        </figcaption>
+        <div class="view__frame">
+          <img alt="Live view from the ${cam.label} camera">
+          <div class="view__lost">
+            <strong>Feed stopped</strong>
+            <span>Reconnecting&hellip;</span>
+          </div>
+        </div>`;
+      const img = fig.querySelector("img");
+      img.src = `/api/stream/${encodeURIComponent(cam.id)}`;
+      img.addEventListener("error", () => {
+        fig.dataset.feed = "lost";
+        setTimeout(() => { img.src = `/api/stream/${encodeURIComponent(cam.id)}?r=${Date.now()}`; }, 2000);
+      });
+      img.addEventListener("load", () => { fig.dataset.feed = "live"; });
+      $("views").appendChild(fig);
+    });
+  }
+
+  function renderReceipt(receipt) {
+    const list = $("lines");
+    const items = receipt.items || [];
+    $("linesEmpty").style.display = items.length ? "none" : "block";
+
+    const keep = new Set();
+    items.forEach((item) => {
+      const key = `${item.sku}|${item.display}`;
+      keep.add(key);
+      let li = list.querySelector(`[data-key="${CSS.escape(key)}"]`);
+      if (!li) {
+        li = document.createElement("li");
+        li.className = "line";
+        li.dataset.key = key;
+        li.innerHTML = `<span class="line__qty"></span><span class="line__name"></span>
+                        <span class="line__dots"></span><span class="line__amt"></span>`;
+        list.appendChild(li);
+        if (!firstPaint) {
+          li.dataset.fresh = "";
+          setTimeout(() => delete li.dataset.fresh, 900);
+        }
+      }
+      if (!item.recognized) li.dataset.unknown = "";
+      li.querySelector(".line__qty").textContent = item.qty;
+      li.querySelector(".line__name").textContent = item.display;
+      li.querySelector(".line__amt").textContent = Number(item.subtotal).toFixed(2);
+    });
+    list.querySelectorAll(".line").forEach((li) => {
+      if (!keep.has(li.dataset.key)) li.remove();
+    });
+
+    $("total").textContent = money(receipt.total).replace(currency, "");
+    const count = items.reduce((n, i) => n + i.qty, 0);
+    $("tallyItems").textContent = `${count} ITEM${count === 1 ? "" : "S"}`;
+    $("tallyRemoved").textContent = receipt.items_removed
+      ? `${receipt.items_removed} REMOVED` : "";
+    $("receipt").dataset.attention = String(Boolean(receipt.needs_attention));
+  }
+
+  function renderLedger(timeline) {
+    const list = $("ledger");
+    $("ledgerEmpty").style.display = timeline.length ? "none" : "block";
+    $("ledgerCount").textContent = timeline.length ? `${timeline.length} entries` : "";
+
+    const ids = timeline.map((e) => `${e.frame}:${e.kind}:${e.text}`);
+    const known = new Set(ids);
+    list.querySelectorAll(".event").forEach((li) => {
+      if (!known.has(li.dataset.id)) li.remove();
+    });
+
+    timeline.forEach((entry, index) => {
+      const id = ids[index];
+      let li = list.querySelector(`[data-id="${CSS.escape(id)}"]`);
+      if (!li) {
+        li = document.createElement("li");
+        li.className = "event";
+        li.dataset.id = id;
+        li.dataset.kind = entry.kind;
+        li.innerHTML = `<time></time><span class="event__kind"></span><p class="event__text"></p>`;
+        li.querySelector("time").textContent = timecode(entry.time_s);
+        li.querySelector(".event__kind").textContent = KIND_LABEL[entry.kind] || entry.kind;
+        li.querySelector(".event__text").textContent = entry.text;
+        if (!firstPaint) {
+          li.dataset.fresh = "";
+          setTimeout(() => delete li.dataset.fresh, 400);
+        }
+      }
+      const atIndex = list.children[index];
+      if (atIndex !== li) list.insertBefore(li, atIndex || null);
+    });
+    seenEvents = known;
+  }
+
+  function renderPole(state) {
+    const alerts = state.gate.alerts > 0;
+    const attention = Boolean(state.receipt.needs_attention);
+    const lit = alerts ? "stop" : attention ? "warn" : "go";
+    document.querySelectorAll(".pole__lamp").forEach((lamp) => {
+      if (lamp.dataset.lamp === lit) lamp.dataset.lit = "";
+      else delete lamp.dataset.lit;
+    });
+    $("poleLabel").textContent = alerts
+      ? (state.gate.alerts === 1 ? "1 alert" : `${state.gate.alerts} alerts`)
+      : attention ? "Attendant" : state.status === "ended" ? "Session ended" : "Clear";
+    root.dataset.alerting = String(Boolean(state.gate.alert_active));
+  }
+
+  function render(state) {
+    currency = state.currency || "$";
+    root.dataset.status = state.status;
+    buildCameras(state.cameras);
+
+    state.cameras.forEach((cam) => {
+      const fig = document.querySelector(`.view[data-camera="${CSS.escape(cam.id)}"]`);
+      if (fig) fig.dataset.alerting = String(Boolean(cam.alerting));
+    });
+
+    $("telTime").textContent = `${state.time_s.toFixed(1)}s`;
+    $("telFrame").textContent = state.frame;
+    $("telFps").textContent = state.fps.toFixed(1);
+    $("telBackend").textContent = state.backend;
+
+    renderReceipt(state.receipt);
+    renderLedger(state.timeline);
+    renderPole(state);
+
+    $("gateAlerts").textContent = state.gate.alerts;
+    $("gateCleared").textContent = state.gate.cleared;
+    $("gateAccounted").textContent = state.gate.accounted;
+    $("gateCredits").textContent = state.gate.credits;
+
+    paused = state.status === "paused";
+    const btn = $("btnPause");
+    btn.textContent = paused ? "Resume" : "Pause";
+    if (paused) btn.dataset.active = ""; else delete btn.dataset.active;
+
+    firstPaint = false;
+  }
+
+  // -- plumbing --------------------------------------------------------------
+
+  async function poll() {
+    try {
+      const response = await fetch("/api/state", { cache: "no-store" });
+      if (!response.ok) throw new Error(response.statusText);
+      render(await response.json());
+    } catch {
+      root.dataset.status = "offline";
+      $("poleLabel").textContent = "No signal";
+    }
+  }
+
+  async function control(action) {
+    try {
+      await fetch("/api/control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      poll();
+    } catch { /* the next poll surfaces it */ }
+  }
+
+  $("btnPause").addEventListener("click", () => control(paused ? "resume" : "pause"));
+  $("btnRestart").addEventListener("click", () => control("restart"));
+
+  document.addEventListener("keydown", (event) => {
+    if (event.target !== document.body) return;
+    if (event.code === "Space") { event.preventDefault(); control(paused ? "resume" : "pause"); }
+    if (event.key === "r" || event.key === "R") control("restart");
+  });
+
+  poll();
+  setInterval(poll, 400);
+})();
+</script>
+</body>
+</html>
