@@ -1,0 +1,6 @@
+# Python 3.10-3.12 recommended (ultralytics pulls torch).
+numpy>=1.26,<2.3
+opencv-python>=4.9
+ultralytics>=8.3        # YOLO detection + ByteTrack tracking
+lap>=0.5.12             # ByteTrack's assignment solver (ultralytics installs it on first use otherwise)
+pytest>=8.0             # tests only

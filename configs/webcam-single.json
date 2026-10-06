@@ -1,0 +1,34 @@
+{
+  "catalog": "catalog.json",
+  "_comment": "One webcam, both features. Left half is the checkout bin: items that settle there are priced and credited. Right half is the shopping bag: an item that lands there without having passed through the bin raises an alert. Redraw the polygons for your desk with: python run.py zones --config configs/webcam-single.json",
+  "detector": {
+    "model": "yolo11n.pt",
+    "min_conf": 0.4,
+    "imgsz": 640
+  },
+  "tuning": {
+    "coverage_threshold": 0.3,
+    "confirm_frames": 5,
+    "exit_frames": 8,
+    "lost_frames": 45
+  },
+  "cameras": [
+    {
+      "id": "lane",
+      "label": "WEBCAM  bin (left) -> bag (right)",
+      "source": "0",
+      "zones": [
+        {
+          "name": "checkout-bin",
+          "role": "bin",
+          "polygon": [[0.03, 0.22], [0.45, 0.22], [0.45, 0.95], [0.03, 0.95]]
+        },
+        {
+          "name": "shopping-bag",
+          "role": "bag",
+          "polygon": [[0.56, 0.22], [0.97, 0.22], [0.97, 0.95], [0.56, 0.95]]
+        }
+      ]
+    }
+  ]
+}

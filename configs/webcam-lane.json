@@ -1,0 +1,39 @@
+{
+  "catalog": "catalog.json",
+  "_comment": "One webcam, classic scan gate: basket -> scan -> bag across the frame. Moving an item from the left third to the right third without dwelling in the middle third is what trips the alert.",
+  "detector": {
+    "model": "yolo11n.pt",
+    "min_conf": 0.4,
+    "imgsz": 640
+  },
+  "tuning": {
+    "coverage_threshold": 0.3,
+    "confirm_frames": 5,
+    "exit_frames": 8,
+    "lost_frames": 45
+  },
+  "cameras": [
+    {
+      "id": "lane",
+      "label": "WEBCAM  basket -> scan -> bag",
+      "source": "0",
+      "zones": [
+        {
+          "name": "basket",
+          "role": "basket",
+          "polygon": [[0.02, 0.22], [0.31, 0.22], [0.31, 0.95], [0.02, 0.95]]
+        },
+        {
+          "name": "scanner",
+          "role": "scan",
+          "polygon": [[0.37, 0.18], [0.63, 0.18], [0.63, 0.95], [0.37, 0.95]]
+        },
+        {
+          "name": "shopping-bag",
+          "role": "bag",
+          "polygon": [[0.69, 0.22], [0.98, 0.22], [0.98, 0.95], [0.69, 0.95]]
+        }
+      ]
+    }
+  ]
+}
