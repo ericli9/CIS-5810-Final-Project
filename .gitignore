@@ -1,0 +1,17 @@
+# RPC dataset
+data/
+
+# Trained models
+*.pt
+*.pth
+*.ckpt
+
+# Generated experiment results
+results*/
+__pycache__/
+*.pyc
+
+# Environment and system files
+.venv/
+.env
+.DS_Store
